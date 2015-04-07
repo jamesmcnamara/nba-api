@@ -102,11 +102,9 @@ class GamelogIngester(object):
         Adds all gamelogs from a basketball-reference url to the database.
         """
         # If no header, that means no matchups between a player combo exist.
-        if not self.header_add:
-            return
-
-        self.table_to_db('regular', self.regular_table)
-        self.table_to_db('playoff', self.playoff_table)
+        if self.header_add:
+            self.table_to_db('regular', self.regular_table)
+            self.table_to_db('playoff', self.playoff_table)
 
     def create_header(self):
         """
@@ -217,7 +215,7 @@ class BasicGamelogIngester(GamelogIngester):
                 stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
             # Home
             elif i == 5:
-                stat_values.append(not(text == '@'))
+                stat_values.append(text != '@')
             # WinLoss
             elif i == 7:
                 plusminus = re.compile('.*?\((.*?)\)')
@@ -285,6 +283,10 @@ class HeadtoheadGamelogIngester(GamelogIngester):
         """
         Loops through of a list of columns and returns a list of values which
         change or skip the col strings based on their content.
+        
+        If at all possible, the similar code in the BasicGameLog ingester and
+        HeadtoheadGameLogIngester should be combined, and this method should
+        begin with a super() call.
 
         :param stat_values: Initial values list.
         :param cols: List of column values in a single gamelog.
@@ -299,7 +301,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
                 stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
             # Home
             elif i == 4:
-                stat_values.append(not(text == '@'))
+                stat_values.append(text != '@')
             # Percentages
             # Skip them because they can be calculated manually.
             elif i in {11, 14, 17}:
@@ -331,9 +333,8 @@ class HeadtoheadGamelogIngester(GamelogIngester):
                 """
                 if 'Main' in name:
                     return title.replace('Main', 'Opp')
-                if 'Opp' in name:
+                else:
                     return title.replace('Opp', 'Main')
-                return title
             gamelog = {changer(key): val for key, val in gamelog.items()}
         return gamelog
 
@@ -346,10 +347,12 @@ class PlayerIngester(object):
         self.letter = letter
         self.br_url = 'http://www.basketball-reference.com'
         self.letter_page = requests.get(
-            self.br_url + '/players/' + self.letter).text
+            '{self.br_url}/players/{self.letter}'
+            .format(self=self).text
+            
         self.letter_soup = BeautifulSoup(
             self.letter_page,
-            parse_only=SoupStrainer('div', {'id': 'div_players'}))
+            parse_only = SoupStrainer('div', {'id': 'div_players'}))
 
     def get_gamelog_urls(self, player_url):
         """
@@ -361,7 +364,7 @@ class PlayerIngester(object):
         player_page = requests.get(player_url).text
         player_soup = BeautifulSoup(
             player_page,
-            parse_only=SoupStrainer('div', {'id': 'all_totals'}))
+            parse_only = SoupStrainer('div', {'id': 'all_totals'}))
 
         # Table containing player totals.
         totals_table = player_soup.find('table', {'id': 'totals'})
